@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
