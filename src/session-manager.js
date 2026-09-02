@@ -3,7 +3,7 @@ import { extractRoomId } from './netease.js';
 const VALID_ACTIONS = new Set(['GOTO', 'PLAY', 'PAUSE', 'SEEK']);
 
 export class ListenTogetherSessionManager {
-  constructor({ client, heartbeatMs = 15_000, clock = () => Date.now() }) {
+  constructor({ client, heartbeatMs = 15_000, clock = () => Date.now(), history = null }) {
     this.client = client;
     this.heartbeatMs = heartbeatMs;
     this.clock = clock;
@@ -11,6 +11,7 @@ export class ListenTogetherSessionManager {
     this.timer = null;
     this.heartbeatInFlight = false;
     this.lastHeartbeatError = null;
+    this.history = history;
   }
 
   snapshot() {
@@ -82,6 +83,7 @@ export class ListenTogetherSessionManager {
     }
     this.startHeartbeatLoop();
     await this.sendHeartbeat();
+    await this.history?.start(this.snapshot());
     return { ...this.snapshot(), warnings };
   }
 
@@ -157,6 +159,7 @@ export class ListenTogetherSessionManager {
     this.session.progressMs = progress;
     this.session.progressUpdatedAt = this.clock();
     await this.sendHeartbeat();
+    await this.history?.record(this.session.roomId, 'playback', this.snapshot());
     return this.snapshot();
   }
 
@@ -166,7 +169,9 @@ export class ListenTogetherSessionManager {
       this.client.checkRoom(this.session.roomId),
       this.client.getRoomPlaylist(this.session.roomId),
     ]);
-    return { local: this.snapshot(), room, playlist };
+    const status = { local: this.snapshot(), room, playlist };
+    await this.history?.record(this.session.roomId, 'remote-status', status);
+    return status;
   }
 
   async sendHeartbeat() {
@@ -181,6 +186,7 @@ export class ListenTogetherSessionManager {
       });
       this.session.lastHeartbeatAt = new Date(this.clock()).toISOString();
       this.lastHeartbeatError = null;
+      await this.history?.record(this.session.roomId, 'heartbeat', this.snapshot());
     } catch (error) {
       this.lastHeartbeatError = error.message;
     } finally {
@@ -205,6 +211,7 @@ export class ListenTogetherSessionManager {
     this.stopHeartbeatLoop();
     try {
       const result = await this.client.endRoom(roomId);
+      await this.history?.finish(roomId, { result });
       this.session = null;
       this.lastHeartbeatError = null;
       return { closed: true, roomId, result };

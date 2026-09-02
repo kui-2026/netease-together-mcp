@@ -10,7 +10,7 @@
     "panel": "node src/local-panel.js",
     "update:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/update-windows.ps1",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/local-panel.js && node --check src/netease.js && node --check src/session-manager.js"
+    "check": "node --check src/server.js && node --check src/local-panel.js && node --check src/netease.js && node --check src/session-manager.js && node --check src/history-store.js"
   },
   "engines": {
     "node": ">=20"

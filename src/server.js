@@ -6,6 +6,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { NeteaseClient } from './netease.js';
 import { ListenTogetherSessionManager } from './session-manager.js';
 import { createMcpServer } from './mcp.js';
+import { HistoryStore } from './history-store.js';
+import { join } from 'node:path';
 
 const port = Number(process.env.PORT ?? 3456);
 const host = process.env.HOST ?? '0.0.0.0';
@@ -19,9 +21,16 @@ if (!authToken && !(allowInsecureLocal && ['127.0.0.1', 'localhost'].includes(ho
 }
 
 const client = new NeteaseClient({ cookie: process.env.NETEASE_COOKIE });
+const historyFile = process.env.LISTEN_HISTORY_FILE ?? join(
+  process.env.ProgramData ?? process.cwd(),
+  'netease-together-mcp-data',
+  'listen-history.json',
+);
+const history = new HistoryStore({ file: historyFile });
 const manager = new ListenTogetherSessionManager({
   client,
   heartbeatMs: Number(process.env.HEARTBEAT_MS ?? 15_000),
+  history,
 });
 const app = createMcpExpressApp({ host });
 

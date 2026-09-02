@@ -92,6 +92,45 @@ export class NeteaseClient {
     }));
   }
 
+  async getUserProfile(userId) {
+    const uid = String(userId);
+    const [detail, playlists, weeklyRecord, allRecord] = await Promise.all([
+      this.call('user_detail', { uid }),
+      this.call('user_playlist', { uid, limit: 100 }),
+      this.call('user_record', { uid, type: 1 }).catch((error) => ({ unavailable: error.message })),
+      this.call('user_record', { uid, type: 0 }).catch((error) => ({ unavailable: error.message })),
+    ]);
+    const profile = detail?.profile ?? {};
+    const normalizeRecord = (body) => ({
+      unavailable: body?.unavailable,
+      songs: (body?.weekData ?? body?.allData ?? []).slice(0, 100).map((item) => ({
+        id: String(item.song?.id ?? ''),
+        name: item.song?.name ?? null,
+        artists: (item.song?.ar ?? item.song?.artists ?? []).map((artist) => artist.name).join(', '),
+        playCount: item.playCount ?? null,
+        score: item.score ?? null,
+      })),
+    });
+    return {
+      userId: uid,
+      nickname: profile.nickname ?? null,
+      avatarUrl: profile.avatarUrl ?? null,
+      signature: profile.signature ?? null,
+      level: detail?.level ?? null,
+      follows: profile.follows ?? null,
+      followeds: profile.followeds ?? null,
+      eventCount: profile.eventCount ?? null,
+      playlistCount: profile.playlistCount ?? null,
+      listenSongs: profile.listenSongs ?? null,
+      playlists: (playlists?.playlist ?? []).map((playlist) => ({
+        id: String(playlist.id), name: playlist.name, trackCount: playlist.trackCount ?? 0,
+        public: playlist.privacy === 0, subscribed: Boolean(playlist.subscribed),
+      })),
+      weeklyListening: normalizeRecord(weeklyRecord),
+      allTimeListening: normalizeRecord(allRecord),
+    };
+  }
+
   async getPlaylistTracks(playlistId) {
     const body = await this.call('playlist_detail', { id: String(playlistId) });
     const playlist = body?.playlist ?? {};

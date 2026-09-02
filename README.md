@@ -55,6 +55,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\netease-together-mcp\
 
 脚本会下载 GitHub `main` 分支的最新版，在临时目录安装依赖并运行测试；全部通过后才会替换当前版本并重启 MCP。若已安装安全隧道客户端，脚本也会自动启动或重启它。服务器本地的 `.env`（包括网易云 Cookie）会被保留，不会上传到 GitHub。若新版本启动失败，脚本会自动恢复并重启旧版本。
 
+一起听历史默认保存在项目目录之外的 `%ProgramData%\netease-together-mcp-data\listen-history.json`，更新版本不会删除。也可以通过 `LISTEN_HISTORY_FILE` 指定其他服务器私有路径。
+
 每次成功更新会在 `C:\` 保留一个带时间戳的回滚副本。确认新版稳定后，可手动删除旧的 `C:\netease-together-mcp.backup-*` 目录。新增或重命名 MCP 工具后，还需要在 ChatGPT 的 `wyy` 插件详情中点击“刷新”，让 ChatGPT 重新读取工具列表。
 
 ### 不敲命令的本地控制台
@@ -81,6 +83,8 @@ docker compose up -d --build
 
 - `netease_account_status`
 - `search_netease_songs`
+- `get_netease_user_profile`
+- `list_listen_together_history`
 - `list_small_account_playlists`
 - `get_netease_playlist_tracks`
 - `create_small_account_playlist`

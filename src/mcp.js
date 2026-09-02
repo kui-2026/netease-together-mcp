@@ -62,6 +62,28 @@ export function createMcpServer(manager, client) {
   );
 
   server.registerTool(
+    'get_netease_user_profile',
+    {
+      title: 'Read a NetEase user profile',
+      description: 'Read profile details, public playlists, and listening rankings visible to the configured account. Use user ID 1461039775 for the owner\'s main account.',
+      inputSchema: { user_id: z.string().min(1) },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    guarded(({ user_id }) => client.getUserProfile(user_id)),
+  );
+
+  server.registerTool(
+    'list_listen_together_history',
+    {
+      title: 'List Listen Together history',
+      description: 'Return durable history captured for rooms created and monitored by this MCP, including songs and room observations.',
+      inputSchema: { limit: z.number().int().min(1).max(100).optional() },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    guarded(({ limit }) => manager.history?.list(limit) ?? []),
+  );
+
+  server.registerTool(
     'list_small_account_playlists',
     {
       title: 'List small-account playlists',
