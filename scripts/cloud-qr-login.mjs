@@ -21,7 +21,7 @@ const qrResult = await api.login_qr_create({ key, timestamp: Date.now() });
 const qrUrl = qrResult?.body?.data?.qrurl;
 if (!qrUrl) throw new Error('Could not create a NetEase QR login code.');
 
-console.log(await QRCode.toString(qrUrl, { type: 'terminal' }));
+console.log(await QRCode.toString(qrUrl, { type: 'terminal', small: true }));
 console.log('请用网易云音乐小号扫码，并在手机上确认登录。二维码约 3 分钟有效。');
 
 const states = {
