@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/server.js",
     "panel": "node src/local-panel.js",
+    "update:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/update-windows.ps1",
     "test": "node --test",
     "check": "node --check src/server.js && node --check src/local-panel.js && node --check src/netease.js && node --check src/session-manager.js"
   },
@@ -18,6 +19,7 @@
     "@modelcontextprotocol/sdk": "1.30.0",
     "@neteasecloudmusicapienhanced/api": "4.40.1",
     "dotenv": "^16.6.1",
+    "qrcode": "^1.5.4",
     "zod": "^3.25.0"
   }
 }
