@@ -30,6 +30,8 @@ const states = {
   802: '已扫码，请在手机上确认…',
 };
 
+let lastStatusMessage = '';
+
 for (let attempt = 0; attempt < 90; attempt += 1) {
   const statusResult = await api.login_qr_check({ key, timestamp: Date.now() });
   const body = statusResult?.body ?? {};
@@ -44,7 +46,11 @@ for (let attempt = 0; attempt < 90; attempt += 1) {
     process.exit(0);
   }
 
-  console.log(states[code] ?? `登录状态：${code || '未知'}。`);
+  const statusMessage = states[code] ?? `登录状态：${code || '未知'}。`;
+  if (statusMessage !== lastStatusMessage) {
+    console.log(statusMessage);
+    lastStatusMessage = statusMessage;
+  }
   if (code === 800) process.exit(1);
   await pause(2000);
 }
