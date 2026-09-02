@@ -87,8 +87,8 @@ $tempRoot = Join-Path $env:TEMP "netease-together-update-$timestamp"
 $zipPath = Join-Path $tempRoot 'source.zip'
 $extractPath = Join-Path $tempRoot 'source'
 $backupPath = "$projectFullPath.backup-$timestamp"
-$failedPath = "$projectFullPath.failed-$timestamp"
-$switched = $false
+$deploymentStarted = $false
+$mcpStopped = $false
 $tunnelShouldRun = Test-Path -LiteralPath $TunnelClientPath -PathType Leaf
 $tunnelRestarted = $false
 
@@ -150,10 +150,15 @@ try {
     $tunnelProcesses | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
   }
   Stop-McpServer -ListenPort $Port
-  Set-Location (Split-Path -Parent $projectFullPath)
-  Move-Item -LiteralPath $projectFullPath -Destination $backupPath
-  $switched = $true
-  Move-Item -LiteralPath $releasePath -Destination $projectFullPath
+  $mcpStopped = $true
+
+  New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+  & robocopy.exe $projectFullPath $backupPath /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP
+  if ($LASTEXITCODE -ge 8) { throw "Backup failed with robocopy exit code $LASTEXITCODE." }
+
+  $deploymentStarted = $true
+  & robocopy.exe $releasePath $projectFullPath /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP
+  if ($LASTEXITCODE -ge 8) { throw "Deployment failed with robocopy exit code $LASTEXITCODE." }
 
   Write-Host '5/5 Starting the MCP server and checking health...'
   $health = Start-McpServer -NodePath $nodePath -WorkingDirectory $projectFullPath -ListenPort $Port
@@ -167,20 +172,22 @@ try {
   Write-Host 'If tools were added or renamed, refresh wyy in ChatGPT plugin settings.'
 } catch {
   $originalError = $_
-  if ($switched) {
+  if ($deploymentStarted -and (Test-Path -LiteralPath $backupPath)) {
     Write-Warning 'The new release failed. Restoring the previous working version...'
     Stop-McpServer -ListenPort $Port
-    if (Test-Path -LiteralPath $projectFullPath) {
-      Move-Item -LiteralPath $projectFullPath -Destination $failedPath
+    & robocopy.exe $backupPath $projectFullPath /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP
+    if ($LASTEXITCODE -ge 8) {
+      Write-Warning "Rollback copy failed with robocopy exit code $LASTEXITCODE. Backup remains at $backupPath"
+    } else {
+      Write-Host 'Previous files restored.' -ForegroundColor Yellow
     }
-    if (Test-Path -LiteralPath $backupPath) {
-      Move-Item -LiteralPath $backupPath -Destination $projectFullPath
-      try {
-        Start-McpServer -NodePath $nodePath -WorkingDirectory $projectFullPath -ListenPort $Port | Out-Null
-        Write-Host 'Previous version restored and restarted.' -ForegroundColor Yellow
-      } catch {
-        Write-Warning "Rollback files were restored, but restart failed: $($_.Exception.Message)"
-      }
+  }
+  if ($mcpStopped -and (Test-Path -LiteralPath (Join-Path $projectFullPath 'src\server.js'))) {
+    try {
+      Start-McpServer -NodePath $nodePath -WorkingDirectory $projectFullPath -ListenPort $Port | Out-Null
+      Write-Host 'MCP server restarted.' -ForegroundColor Yellow
+    } catch {
+      Write-Warning "MCP restart failed: $($_.Exception.Message)"
     }
   }
   if ($tunnelShouldRun -and -not $tunnelRestarted) {
