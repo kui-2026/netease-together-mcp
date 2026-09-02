@@ -49,6 +49,19 @@ test('preserves structured errors when both search endpoints fail', async () => 
   });
 });
 
+test('resolves song IDs to normalized metadata', async () => {
+  const client = new NeteaseClient({ cookie: 'MUSIC_U=fake', api: {
+    song_detail: async ({ ids }) => ({ body: { code: 200, songs: [{
+      id: Number(ids), name: 'Ref:rain', ar: [{ name: 'Aimer' }],
+      al: { name: 'Ref:rain / 眩いばかり', picUrl: 'https://example.test/cover.jpg' }, dt: 290000,
+    }] } }),
+  } });
+  assert.deepEqual(await client.getSongDetails(['536623501']), [{
+    id: '536623501', name: 'Ref:rain', artists: 'Aimer', album: 'Ref:rain / 眩いばかり',
+    durationMs: 290000, coverUrl: 'https://example.test/cover.jpg',
+  }]);
+});
+
 test('combines visible user profile data and listening records', async () => {
   const client = new NeteaseClient({ cookie: 'MUSIC_U=fake', api: {
     user_detail: async () => ({ body: { code: 200, level: 9, profile: { userId: 1461039775, nickname: 'main' } } }),

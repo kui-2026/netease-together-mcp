@@ -83,8 +83,10 @@ docker compose up -d --build
 
 - `netease_account_status`
 - `search_netease_songs`
+- `get_netease_song_details`
 - `get_netease_user_profile`
 - `list_listen_together_history`
+- `save_listen_together_memory`
 - `list_small_account_playlists`
 - `get_netease_playlist_tracks`
 - `create_small_account_playlist`

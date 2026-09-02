@@ -73,6 +73,17 @@ export function createMcpServer(manager, client) {
   );
 
   server.registerTool(
+    'get_netease_song_details',
+    {
+      title: 'Resolve NetEase song IDs',
+      description: 'Resolve up to 200 NetEase song IDs to names, artists, albums, durations, and cover URLs.',
+      inputSchema: { song_ids: z.array(z.string().min(1)).min(1).max(200) },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    guarded(({ song_ids }) => client.getSongDetails(song_ids)),
+  );
+
+  server.registerTool(
     'list_listen_together_history',
     {
       title: 'List Listen Together history',
@@ -80,7 +91,41 @@ export function createMcpServer(manager, client) {
       inputSchema: { limit: z.number().int().min(1).max(100).optional() },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    guarded(({ limit }) => manager.history?.list(limit) ?? []),
+    guarded(async ({ limit }) => {
+      const sessions = await (manager.history?.list(limit) ?? []);
+      const songIds = [...new Set(sessions.flatMap((session) => session.songs.map((song) => song.id)))];
+      const details = songIds.length ? await client.getSongDetails(songIds) : [];
+      const byId = Object.fromEntries(details.map((song) => [song.id, song]));
+      return sessions.map((session) => ({
+        ...session,
+        songs: session.songs.map((song) => ({ ...song, ...byId[song.id] })),
+        events: session.events.map((event) => ({
+          ...event,
+          song: event.songId ? byId[event.songId] : undefined,
+          oldSong: event.oldSongId ? byId[event.oldSongId] : undefined,
+          newSong: event.newSongId ? byId[event.newSongId] : undefined,
+        })),
+      }));
+    }),
+  );
+
+  server.registerTool(
+    'save_listen_together_memory',
+    {
+      title: 'Save a Listen Together memory',
+      description: 'Attach a user-approved title and note to the latest or selected durable Listen Together history entry.',
+      inputSchema: {
+        room_id: z.string().min(1).optional(),
+        title: z.string().max(120).optional(),
+        note: z.string().max(2000).optional(),
+        confirm: z.boolean(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    guarded(({ room_id, title, note, confirm }) => {
+      requireConfirmation(confirm);
+      return manager.history.saveMemory({ roomId: room_id, title, note });
+    }),
   );
 
   server.registerTool(

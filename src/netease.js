@@ -93,6 +93,24 @@ export class NeteaseClient {
     }));
   }
 
+  async getSongDetails(songIds) {
+    const ids = [...new Set(songIds.map(String).filter(Boolean))].slice(0, 200);
+    if (ids.length === 0) return [];
+    const body = await this.call('song_detail', { ids: ids.join(',') });
+    return (body?.songs ?? []).map((song) => ({
+      id: String(song.id),
+      name: song.name ?? null,
+      artists: (song.ar ?? song.artists ?? []).map((artist) => artist.name).join(', '),
+      album: song.al?.name ?? song.album?.name ?? null,
+      durationMs: song.dt ?? song.duration ?? null,
+      coverUrl: song.al?.picUrl ?? song.album?.picUrl ?? null,
+    }));
+  }
+
+  getListenTogetherStatus() {
+    return this.call('listentogether_status');
+  }
+
   async listMyPlaylists(limit = 100) {
     const account = await this.accountInfo();
     const body = await this.call('user_playlist', {

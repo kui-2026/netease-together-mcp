@@ -178,6 +178,20 @@ export class ListenTogetherSessionManager {
     if (!this.session || this.heartbeatInFlight) return;
     this.heartbeatInFlight = true;
     try {
+      try {
+        const remote = await this.client.getListenTogetherStatus();
+        const playback = extractPlaybackState(remote);
+        if (playback.songId && playback.songId !== this.session.songId) {
+          this.session.formerSongId = this.session.songId;
+          this.session.songId = playback.songId;
+          this.session.progressMs = playback.progressMs ?? 0;
+          this.session.progressUpdatedAt = this.clock();
+          if (playback.playStatus) this.session.playStatus = playback.playStatus;
+          await this.history?.record(this.session.roomId, 'remote-playback', this.snapshot());
+        }
+      } catch {
+        // Some accounts or API versions do not expose status; heartbeat still works.
+      }
       await this.client.heartbeat({
         roomId: this.session.roomId,
         songId: this.session.songId,
@@ -224,4 +238,29 @@ export class ListenTogetherSessionManager {
   requireSession() {
     if (!this.session) throw new Error('No active Listen Together room.');
   }
+}
+
+function extractPlaybackState(body) {
+  const roots = [body?.data, body].filter(Boolean);
+  const candidates = [];
+  for (const root of roots) {
+    candidates.push(
+      root?.playInfo,
+      root?.playback,
+      root?.current,
+      root?.roomInfo?.playInfo,
+      root?.roomInfo,
+      root,
+    );
+  }
+  for (const value of candidates) {
+    const songId = value?.songId ?? value?.currentSongId ?? value?.targetSongId;
+    if (!songId || String(songId) === '-1') continue;
+    return {
+      songId: String(songId),
+      playStatus: value?.playStatus ?? value?.status ?? null,
+      progressMs: Number.isFinite(Number(value?.progress)) ? Number(value.progress) : null,
+    };
+  }
+  return {};
 }
