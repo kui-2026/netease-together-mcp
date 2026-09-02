@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createServer } from 'node:http';
 import { NeteaseClient } from './netease.js';
 import { ListenTogetherSessionManager } from './session-manager.js';
