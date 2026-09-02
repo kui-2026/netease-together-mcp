@@ -35,8 +35,10 @@ export class NeteaseClient {
     try {
       raw = await fn({ ...params, cookie: this.cookie });
     } catch (error) {
+      const detail = normalizeThrownError(error);
       throw new NeteaseApiError(`NetEase request failed: ${method}`, {
-        message: error instanceof Error ? error.message : String(error),
+        method,
+        ...detail,
       });
     }
 
@@ -64,10 +66,24 @@ export class NeteaseClient {
   }
 
   async searchSongs(query, limit = 10) {
-    const body = await this.call('search', {
+    const params = {
       keywords: query,
       limit: Math.max(1, Math.min(Number(limit) || 10, 20)),
-    });
+      type: 1,
+    };
+    let body;
+    try {
+      body = await this.call('cloudsearch', params);
+    } catch (cloudError) {
+      try {
+        body = await this.call('search', params);
+      } catch (legacyError) {
+        throw new NeteaseApiError('NetEase song search failed on both search endpoints.', {
+          cloudsearch: cloudError.detail ?? cloudError.message,
+          legacySearch: legacyError.detail ?? legacyError.message,
+        });
+      }
+    }
     return (body?.result?.songs ?? []).map((song) => ({
       id: String(song.id),
       name: song.name,
@@ -227,6 +243,27 @@ export class NeteaseClient {
   endRoom(roomId) {
     return this.call('listentogether_end', { roomId: String(roomId) });
   }
+}
+
+function normalizeThrownError(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      status: error.status ?? error.response?.status,
+      response: error.response?.data,
+    };
+  }
+  if (error && typeof error === 'object') {
+    return {
+      message: error.message ?? error.msg ?? 'NetEase API threw a non-Error object.',
+      code: error.code,
+      status: error.status,
+      response: error.body ?? error.data,
+    };
+  }
+  return { message: String(error) };
 }
 
 export function extractRoomId(body) {

@@ -20,10 +20,33 @@ test('normalizes song search results', async () => {
   const client = new NeteaseClient({
     cookie: 'MUSIC_U=fake',
     api: {
-      search: async () => ({ body: { code: 200, result: { songs: [{ id: 1, name: 'Ditto', artists: [{ name: 'NewJeans' }], album: { name: 'Ditto' }, duration: 180000 }] } } }),
+      cloudsearch: async () => ({ body: { code: 200, result: { songs: [{ id: 1, name: 'Ditto', artists: [{ name: 'NewJeans' }], album: { name: 'Ditto' }, duration: 180000 }] } } }),
     },
   });
   assert.deepEqual(await client.searchSongs('Ditto'), [{ id: '1', name: 'Ditto', artists: 'NewJeans', album: 'Ditto', durationMs: 180000 }]);
+});
+
+test('falls back to the legacy search endpoint when cloudsearch fails', async () => {
+  const calls = [];
+  const client = new NeteaseClient({ cookie: 'MUSIC_U=fake', api: {
+    cloudsearch: async () => { calls.push('cloudsearch'); throw { code: 500, msg: 'temporary' }; },
+    search: async () => { calls.push('search'); return { body: { code: 200, result: { songs: [{ id: 2, name: 'Fallback', artists: [] }] } } }; },
+  } });
+  const result = await client.searchSongs('Fallback');
+  assert.deepEqual(calls, ['cloudsearch', 'search']);
+  assert.equal(result[0].id, '2');
+});
+
+test('preserves structured errors when both search endpoints fail', async () => {
+  const client = new NeteaseClient({ cookie: 'MUSIC_U=fake', api: {
+    cloudsearch: async () => { throw { code: 503, msg: 'cloud unavailable' }; },
+    search: async () => { throw { status: 429, body: { message: 'limited' } }; },
+  } });
+  await assert.rejects(() => client.searchSongs('x'), (error) => {
+    assert.equal(error.detail.cloudsearch.code, 503);
+    assert.equal(error.detail.legacySearch.status, 429);
+    return true;
+  });
 });
 
 test('combines visible user profile data and listening records', async () => {
