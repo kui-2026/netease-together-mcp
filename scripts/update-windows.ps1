@@ -100,6 +100,10 @@ $npmPath = Get-RequiredExecutable -DisplayName 'npm.cmd' -Candidates @(
   'C:\Program Files\nodejs\npm.cmd',
   'npm.cmd'
 )
+$nodeDirectory = Split-Path -Parent $nodePath
+if (($env:Path -split ';') -notcontains $nodeDirectory) {
+  $env:Path = "$nodeDirectory;$env:Path"
+}
 
 if (-not (Test-Path -LiteralPath $projectFullPath -PathType Container)) {
   throw "Project folder not found: $projectFullPath"
