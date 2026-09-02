@@ -2,7 +2,9 @@
 param(
   [string]$ProjectPath = 'C:\netease-together-mcp',
   [string]$RepositoryZip = 'https://github.com/kui-2026/netease-together-mcp/archive/refs/heads/main.zip',
-  [int]$Port = 3456
+  [int]$Port = 3456,
+  [string]$TunnelClientPath = 'C:\tunnel-client\tunnel-client.exe',
+  [string]$TunnelProfile = 'netease'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,6 +67,19 @@ function Start-McpServer {
   throw "The updated MCP server did not become healthy.`n$details"
 }
 
+function Start-TunnelClient {
+  param([string]$ExecutablePath, [string]$ProfileName, [string]$LogDirectory)
+
+  if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
+    throw "Tunnel client not found: $ExecutablePath"
+  }
+  Start-Process -FilePath $ExecutablePath `
+    -ArgumentList @('run', '--profile', $ProfileName) `
+    -WorkingDirectory (Split-Path -Parent $ExecutablePath) `
+    -RedirectStandardOutput (Join-Path $LogDirectory 'tunnel.log') `
+    -RedirectStandardError (Join-Path $LogDirectory 'tunnel-error.log')
+}
+
 $projectFullPath = [IO.Path]::GetFullPath($ProjectPath).TrimEnd('\')
 $envFile = Join-Path $projectFullPath '.env'
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -74,6 +89,8 @@ $extractPath = Join-Path $tempRoot 'source'
 $backupPath = "$projectFullPath.backup-$timestamp"
 $failedPath = "$projectFullPath.failed-$timestamp"
 $switched = $false
+$tunnelWasRunning = $false
+$tunnelRestarted = $false
 
 $nodePath = Get-RequiredExecutable -DisplayName 'node.exe' -Candidates @(
   'C:\Program Files\nodejs\node.exe',
@@ -123,6 +140,12 @@ try {
   }
 
   Write-Host '4/5 Switching to the verified release...'
+  $tunnelProcesses = @(Get-Process -Name 'tunnel-client' -ErrorAction SilentlyContinue)
+  $tunnelWasRunning = $tunnelProcesses.Count -gt 0
+  if ($tunnelWasRunning) {
+    $tunnelProcesses | Stop-Process -Force
+    $tunnelProcesses | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+  }
   Stop-McpServer -ListenPort $Port
   Set-Location (Split-Path -Parent $projectFullPath)
   Move-Item -LiteralPath $projectFullPath -Destination $backupPath
@@ -131,6 +154,10 @@ try {
 
   Write-Host '5/5 Starting the MCP server and checking health...'
   $health = Start-McpServer -NodePath $nodePath -WorkingDirectory $projectFullPath -ListenPort $Port
+  if ($tunnelWasRunning) {
+    Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath)
+    $tunnelRestarted = $true
+  }
   Write-Host ''
   Write-Host "Update successful. MCP status: $($health.status); version: $($health.version)" -ForegroundColor Green
   Write-Host "Rollback copy kept at: $backupPath"
@@ -151,6 +178,14 @@ try {
       } catch {
         Write-Warning "Rollback files were restored, but restart failed: $($_.Exception.Message)"
       }
+    }
+  }
+  if ($tunnelWasRunning -and -not $tunnelRestarted) {
+    try {
+      Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath)
+      $tunnelRestarted = $true
+    } catch {
+      Write-Warning "Tunnel restart failed: $($_.Exception.Message)"
     }
   }
   throw $originalError

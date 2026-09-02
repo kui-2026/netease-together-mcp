@@ -53,7 +53,7 @@ npm start
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\netease-together-mcp\scripts\update-windows.ps1
 ```
 
-脚本会下载 GitHub `main` 分支的最新版，在临时目录安装依赖并运行测试；全部通过后才会替换当前版本并重启 MCP。服务器本地的 `.env`（包括网易云 Cookie）会被保留，不会上传到 GitHub。若新版本启动失败，脚本会自动恢复并重启旧版本。
+脚本会下载 GitHub `main` 分支的最新版，在临时目录安装依赖并运行测试；全部通过后才会替换当前版本并重启 MCP。若安全隧道正在运行，脚本也会暂时停止并自动重启它。服务器本地的 `.env`（包括网易云 Cookie）会被保留，不会上传到 GitHub。若新版本启动失败，脚本会自动恢复并重启旧版本。
 
 每次成功更新会在 `C:\` 保留一个带时间戳的回滚副本。确认新版稳定后，可手动删除旧的 `C:\netease-together-mcp.backup-*` 目录。新增或重命名 MCP 工具后，还需要在 ChatGPT 的 `wyy` 插件详情中点击“刷新”，让 ChatGPT 重新读取工具列表。
 
