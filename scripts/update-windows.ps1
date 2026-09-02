@@ -89,7 +89,7 @@ $extractPath = Join-Path $tempRoot 'source'
 $backupPath = "$projectFullPath.backup-$timestamp"
 $failedPath = "$projectFullPath.failed-$timestamp"
 $switched = $false
-$tunnelWasRunning = $false
+$tunnelShouldRun = Test-Path -LiteralPath $TunnelClientPath -PathType Leaf
 $tunnelRestarted = $false
 
 $nodePath = Get-RequiredExecutable -DisplayName 'node.exe' -Candidates @(
@@ -141,8 +141,7 @@ try {
 
   Write-Host '4/5 Switching to the verified release...'
   $tunnelProcesses = @(Get-Process -Name 'tunnel-client' -ErrorAction SilentlyContinue)
-  $tunnelWasRunning = $tunnelProcesses.Count -gt 0
-  if ($tunnelWasRunning) {
+  if ($tunnelProcesses.Count -gt 0) {
     $tunnelProcesses | Stop-Process -Force
     $tunnelProcesses | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
   }
@@ -154,7 +153,7 @@ try {
 
   Write-Host '5/5 Starting the MCP server and checking health...'
   $health = Start-McpServer -NodePath $nodePath -WorkingDirectory $projectFullPath -ListenPort $Port
-  if ($tunnelWasRunning) {
+  if ($tunnelShouldRun) {
     Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath)
     $tunnelRestarted = $true
   }
@@ -180,7 +179,7 @@ try {
       }
     }
   }
-  if ($tunnelWasRunning -and -not $tunnelRestarted) {
+  if ($tunnelShouldRun -and -not $tunnelRestarted) {
     try {
       Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath)
       $tunnelRestarted = $true
