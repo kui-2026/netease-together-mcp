@@ -1,0 +1,22 @@
+{
+  "name": "netease-together-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight MCP proof-of-concept for NetEase Cloud Music Listen Together rooms.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "panel": "node src/local-panel.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && node --check src/local-panel.js && node --check src/netease.js && node --check src/session-manager.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@neteasecloudmusicapienhanced/api": "4.40.1",
+    "zod": "^3.25.0"
+  }
+}
