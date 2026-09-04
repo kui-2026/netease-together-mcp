@@ -41,11 +41,22 @@ function Stop-McpServer {
 function Start-McpServer {
   param([string]$NodePath, [string]$WorkingDirectory, [int]$ListenPort)
 
-  Start-Process -FilePath $NodePath `
-    -ArgumentList 'src\server.js' `
-    -WorkingDirectory $WorkingDirectory `
-    -RedirectStandardOutput (Join-Path $WorkingDirectory 'mcp.log') `
-    -RedirectStandardError (Join-Path $WorkingDirectory 'mcp-error.log')
+  # The VPS web terminal closes child Node processes when a PowerShell command ends.
+  # Run the server through a per-user scheduled task so it remains available afterwards.
+  $taskName = 'NetEaseTogetherMcp'
+  $launcherPath = Join-Path $WorkingDirectory 'run-mcp.cmd'
+  if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
+    throw "MCP launcher not found: $launcherPath"
+  }
+
+  & schtasks.exe /Create /TN $taskName /TR $launcherPath /SC ONLOGON /F | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not create the scheduled task '$taskName' (exit code $LASTEXITCODE)."
+  }
+  & schtasks.exe /Run /TN $taskName | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not start the scheduled task '$taskName' (exit code $LASTEXITCODE)."
+  }
 
   $healthUrl = "http://127.0.0.1:$ListenPort/health"
   for ($attempt = 0; $attempt -lt 20; $attempt += 1) {
