@@ -5,7 +5,7 @@ param(
   [int]$Port = 3456,
   [string]$TunnelClientPath = 'C:\tunnel-client\tunnel-client.exe',
   [string]$TunnelProfile = 'netease',
-  [int]$TunnelHealthPort = 8080
+  [int]$TunnelHealthPort = 18082
 )
 
 $ErrorActionPreference = 'Stop'
