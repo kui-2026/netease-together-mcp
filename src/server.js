@@ -53,7 +53,7 @@ function authorize(req, res, next) {
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', version: '0.1.2', roomActive: manager.snapshot().active });
+  res.json({ status: 'ok', version: '0.1.3', roomActive: manager.snapshot().active });
 });
 
 app.use('/mcp', authorize);
