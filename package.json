@@ -1,6 +1,6 @@
 {
   "name": "netease-together-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "A lightweight MCP proof-of-concept for NetEase Cloud Music Listen Together rooms.",
   "type": "module",
