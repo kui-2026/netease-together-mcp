@@ -103,6 +103,12 @@ function Start-TunnelClient {
     } else {
       'No tunnel error log was created.'
     }
+    # A running client owns this profile's health listener. That client will
+    # reconnect to the restarted MCP server, so it is safe and preferable to keep it.
+    if ($details -match 'listen tcp .*: bind: Only one usage of each socket address') {
+      Write-Host "Tunnel profile '$ProfileName' is already running; keeping the existing client." -ForegroundColor Yellow
+      return $null
+    }
     throw "Tunnel profile '$ProfileName' exited during startup.`n$details"
   }
   return $process
@@ -172,9 +178,8 @@ try {
   }
 
   Write-Host '4/5 Switching to the verified release...'
-  # Never stop other apps' tunnel profiles (for example xhs or steam).
-  # This updater owns only the profile passed in $TunnelProfile.
-  Stop-TunnelClientProfile -ProfileName $TunnelProfile
+  # Keep the existing NetEase tunnel client running. It automatically reconnects
+  # when the local MCP server is restarted, and this avoids touching other profiles.
   Stop-McpServer -ListenPort $Port
   $mcpStopped = $true
 
