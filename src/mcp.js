@@ -226,6 +226,43 @@ export function createMcpServer(manager, client) {
   );
 
   server.registerTool(
+    'send_listen_together_invitation',
+    {
+      title: 'Send Listen Together invitation',
+      description: 'Send the active official Listen Together room invitation URL as a NetEase private message to one specified user. This sends a real message from the configured small account and requires confirm=true.',
+      inputSchema: {
+        recipient_user_id: z.string().min(1).describe('NetEase user ID that should receive the invitation'),
+        message: z.string().min(1).max(700).optional().describe('Optional text placed before the invitation URL'),
+        confirm: z.boolean().describe('Must be true after the user confirms sending the private message'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    guarded(async ({ recipient_user_id, message, confirm }) => {
+      requireConfirmation(confirm);
+      const session = manager.snapshot();
+      if (!session.active) throw new Error('No active Listen Together room. Create one before sending an invitation.');
+      const invitationMessage = [message?.trim(), session.invitationUrl]
+        .filter(Boolean)
+        .join('\n');
+      const delivery = await client.sendPrivateMessage({
+        userId: recipient_user_id,
+        message: invitationMessage,
+      });
+      await manager.history?.record(session.roomId, 'invitation-sent', {
+        recipientUserId: String(recipient_user_id),
+        invitationUrl: session.invitationUrl,
+      });
+      return {
+        sent: true,
+        roomId: session.roomId,
+        recipientUserId: String(recipient_user_id),
+        invitationUrl: session.invitationUrl,
+        deliveryMethod: delivery.method,
+      };
+    }),
+  );
+
+  server.registerTool(
     'get_listen_together_session',
     {
       title: 'Get local room session',
