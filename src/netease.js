@@ -107,6 +107,32 @@ export class NeteaseClient {
     }));
   }
 
+  async sendPrivateMessage({ userId, message }) {
+    const recipientUserId = String(userId ?? '').trim();
+    const text = String(message ?? '').trim();
+    if (!recipientUserId) throw new NeteaseApiError('recipient user ID is required.');
+    if (!text) throw new NeteaseApiError('private-message text is required.');
+    if (text.length > 1000) throw new NeteaseApiError('private-message text must be 1000 characters or fewer.');
+
+    // api-enhanced exposes this current name; send_text is retained as a
+    // compatibility fallback for compatible older API wrappers.
+    const method = ['msg_private_send', 'send_text'].find(
+      (candidate) => typeof this.api[candidate] === 'function',
+    );
+    if (!method) {
+      throw new NeteaseApiError(
+        'The installed NetEase API package does not expose private-message sending.',
+      );
+    }
+
+    const body = await this.call(method, {
+      user_ids: recipientUserId,
+      msg: text,
+      type: 'text',
+    });
+    return { recipientUserId, method, response: body };
+  }
+
   getListenTogetherStatus() {
     return this.call('listentogether_status');
   }
