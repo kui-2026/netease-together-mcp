@@ -33,7 +33,7 @@ const requireConfirmation = (confirmed) => {
 export function createMcpServer(manager, client) {
   const server = new McpServer({
     name: 'netease-together-mcp',
-    version: '0.1.0',
+    version: '0.1.1',
   });
 
   server.registerTool(
