@@ -73,3 +73,33 @@ test('combines visible user profile data and listening records', async () => {
   assert.equal(result.playlists[0].name, '公开歌单');
   assert.equal(result.weeklyListening.songs[0].artists, 'artist');
 });
+
+test('sends a private message through the enhanced API wrapper', async () => {
+  let received;
+  const client = new NeteaseClient({ cookie: 'MUSIC_U=fake', api: {
+    msg_private_send: async (params) => {
+      received = params;
+      return { body: { code: 200, msg: 'ok' } };
+    },
+  } });
+  const result = await client.sendPrivateMessage({
+    userId: '1461039775',
+    message: '一起听邀请：https://st.music.163.com/listen-together/share/?roomId=1',
+  });
+  assert.equal(result.recipientUserId, '1461039775');
+  assert.equal(result.method, 'msg_private_send');
+  assert.deepEqual(received, {
+    user_ids: '1461039775',
+    msg: '一起听邀请：https://st.music.163.com/listen-together/share/?roomId=1',
+    type: 'text',
+    cookie: 'MUSIC_U=fake',
+  });
+});
+
+test('does not send private messages when the API wrapper lacks the capability', async () => {
+  const client = new NeteaseClient({ cookie: 'MUSIC_U=fake', api: {} });
+  await assert.rejects(
+    () => client.sendPrivateMessage({ userId: '1', message: 'hello' }),
+    /does not expose private-message sending/,
+  );
+});
