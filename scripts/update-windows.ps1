@@ -67,17 +67,45 @@ function Start-McpServer {
   throw "The updated MCP server did not become healthy.`n$details"
 }
 
+function Stop-TunnelClientProfile {
+  param([string]$ProfileName)
+
+  $escapedProfile = [regex]::Escape($ProfileName)
+  $matchingProcesses = @(
+    Get-CimInstance Win32_Process -Filter "Name='tunnel-client.exe'" -ErrorAction SilentlyContinue |
+      Where-Object { $_.CommandLine -match "(?i)\\brun\\s+--profile\\s+$escapedProfile(?:\\s|$)" }
+  )
+  foreach ($process in $matchingProcesses) {
+    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+    Wait-Process -Id $process.ProcessId -Timeout 10 -ErrorAction SilentlyContinue
+  }
+}
+
 function Start-TunnelClient {
   param([string]$ExecutablePath, [string]$ProfileName, [string]$LogDirectory)
 
   if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
     throw "Tunnel client not found: $ExecutablePath"
   }
-  Start-Process -FilePath $ExecutablePath `
+
+  $process = Start-Process -FilePath $ExecutablePath `
     -ArgumentList @('run', '--profile', $ProfileName) `
     -WorkingDirectory (Split-Path -Parent $ExecutablePath) `
-    -RedirectStandardOutput (Join-Path $LogDirectory 'tunnel.log') `
-    -RedirectStandardError (Join-Path $LogDirectory 'tunnel-error.log')
+    -RedirectStandardOutput (Join-Path $LogDirectory "$ProfileName-tunnel.log") `
+    -RedirectStandardError (Join-Path $LogDirectory "$ProfileName-tunnel-error.log") `
+    -PassThru
+
+  Start-Sleep -Seconds 2
+  if ($process.HasExited) {
+    $errorLog = Join-Path $LogDirectory "$ProfileName-tunnel-error.log"
+    $details = if (Test-Path -LiteralPath $errorLog) {
+      (Get-Content -LiteralPath $errorLog -Tail 20 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
+    } else {
+      'No tunnel error log was created.'
+    }
+    throw "Tunnel profile '$ProfileName' exited during startup.`n$details"
+  }
+  return $process
 }
 
 $projectFullPath = [IO.Path]::GetFullPath($ProjectPath).TrimEnd('\')
@@ -144,11 +172,9 @@ try {
   }
 
   Write-Host '4/5 Switching to the verified release...'
-  $tunnelProcesses = @(Get-Process -Name 'tunnel-client' -ErrorAction SilentlyContinue)
-  if ($tunnelProcesses.Count -gt 0) {
-    $tunnelProcesses | Stop-Process -Force
-    $tunnelProcesses | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
-  }
+  # Never stop other apps' tunnel profiles (for example xhs or steam).
+  # This updater owns only the profile passed in $TunnelProfile.
+  Stop-TunnelClientProfile -ProfileName $TunnelProfile
   Stop-McpServer -ListenPort $Port
   $mcpStopped = $true
 
