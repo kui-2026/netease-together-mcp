@@ -4,7 +4,8 @@ param(
   [string]$RepositoryZip = 'https://github.com/kui-2026/netease-together-mcp/archive/refs/heads/main.zip',
   [int]$Port = 3456,
   [string]$TunnelClientPath = 'C:\tunnel-client\tunnel-client.exe',
-  [string]$TunnelProfile = 'netease'
+  [string]$TunnelProfile = 'netease',
+  [int]$TunnelHealthPort = 8080
 )
 
 $ErrorActionPreference = 'Stop'
@@ -93,36 +94,58 @@ function Stop-TunnelClientProfile {
 }
 
 function Start-TunnelClient {
-  param([string]$ExecutablePath, [string]$ProfileName, [string]$LogDirectory)
+  param(
+    [string]$ExecutablePath,
+    [string]$ProfileName,
+    [string]$LogDirectory,
+    [string]$LauncherPath,
+    [int]$HealthPort
+  )
 
   if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
     throw "Tunnel client not found: $ExecutablePath"
   }
-
-  $process = Start-Process -FilePath $ExecutablePath `
-    -ArgumentList @('run', '--profile', $ProfileName) `
-    -WorkingDirectory (Split-Path -Parent $ExecutablePath) `
-    -RedirectStandardOutput (Join-Path $LogDirectory "$ProfileName-tunnel.log") `
-    -RedirectStandardError (Join-Path $LogDirectory "$ProfileName-tunnel-error.log") `
-    -PassThru
-
-  Start-Sleep -Seconds 2
-  if ($process.HasExited) {
-    $errorLog = Join-Path $LogDirectory "$ProfileName-tunnel-error.log"
-    $details = if (Test-Path -LiteralPath $errorLog) {
-      (Get-Content -LiteralPath $errorLog -Tail 20 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
-    } else {
-      'No tunnel error log was created.'
-    }
-    # A running client owns this profile's health listener. That client will
-    # reconnect to the restarted MCP server, so it is safe and preferable to keep it.
-    if ($details -match 'listen tcp .*: bind: Only one usage of each socket address') {
-      Write-Host "Tunnel profile '$ProfileName' is already running; keeping the existing client." -ForegroundColor Yellow
-      return $null
-    }
-    throw "Tunnel profile '$ProfileName' exited during startup.`n$details"
+  if (-not (Test-Path -LiteralPath $LauncherPath -PathType Leaf)) {
+    throw "Tunnel launcher not found: $LauncherPath"
   }
-  return $process
+
+  # Stop only the tunnel client owning this profile's dedicated health port.
+  $listeners = @(Get-NetTCPConnection -LocalPort $HealthPort -State Listen -ErrorAction SilentlyContinue)
+  foreach ($listener in $listeners) {
+    $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
+    if (-not $process) { continue }
+    if ($process.ProcessName -ne 'tunnel-client') {
+      throw "Tunnel health port $HealthPort is used by $($process.ProcessName) (PID $($process.Id)); refusing to stop it."
+    }
+    Stop-Process -Id $process.Id -Force
+    Wait-Process -Id $process.Id -Timeout 10 -ErrorAction SilentlyContinue
+  }
+
+  # Keep the tunnel alive independently of the VPS web terminal.
+  $taskName = 'NetEaseTunnelClient'
+  & schtasks.exe /Create /TN $taskName /TR $LauncherPath /SC ONLOGON /F | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not create the scheduled task '$taskName' (exit code $LASTEXITCODE)."
+  }
+  & schtasks.exe /Run /TN $taskName | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not start the scheduled task '$taskName' (exit code $LASTEXITCODE)."
+  }
+
+  for ($attempt = 0; $attempt -lt 20; $attempt += 1) {
+    Start-Sleep -Milliseconds 500
+    $listener = Get-NetTCPConnection -LocalPort $HealthPort -State Listen -ErrorAction SilentlyContinue |
+      Select-Object -First 1
+    if ($listener) { return }
+  }
+
+  $errorLog = Join-Path $LogDirectory "$ProfileName-tunnel-error.log"
+  $details = if (Test-Path -LiteralPath $errorLog) {
+    (Get-Content -LiteralPath $errorLog -Tail 20 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
+  } else {
+    'No tunnel error log was created.'
+  }
+  throw "Tunnel profile '$ProfileName' did not stay running.`n$details"
 }
 
 $projectFullPath = [IO.Path]::GetFullPath($ProjectPath).TrimEnd('\')
@@ -205,7 +228,7 @@ try {
   Write-Host '5/5 Starting the MCP server and checking health...'
   $health = Start-McpServer -NodePath $nodePath -WorkingDirectory $projectFullPath -ListenPort $Port
   if ($tunnelShouldRun) {
-    Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath)
+    Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath) -LauncherPath (Join-Path $projectFullPath 'run-netease-tunnel.cmd') -HealthPort $TunnelHealthPort
     $tunnelRestarted = $true
   }
   Write-Host ''
@@ -234,7 +257,7 @@ try {
   }
   if ($tunnelShouldRun -and -not $tunnelRestarted) {
     try {
-      Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath)
+      Start-TunnelClient -ExecutablePath $TunnelClientPath -ProfileName $TunnelProfile -LogDirectory (Split-Path -Parent $TunnelClientPath) -LauncherPath (Join-Path $projectFullPath 'run-netease-tunnel.cmd') -HealthPort $TunnelHealthPort
       $tunnelRestarted = $true
     } catch {
       Write-Warning "Tunnel restart failed: $($_.Exception.Message)"
