@@ -65,7 +65,7 @@ export function createMcpServer(manager, client) {
     'get_netease_user_profile',
     {
       title: 'Read a NetEase user profile',
-      description: 'Read profile details, public playlists, and listening rankings visible to the configured account. Use user ID 1461039775 for the owner\'s main account.',
+      description: 'Read profile details, public playlists, and listening rankings visible to the configured account. Use only a user ID supplied or verified for the current user. Never assume the repository author or any example account is the current user.',
       inputSchema: { user_id: z.string().min(1) },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -229,9 +229,9 @@ export function createMcpServer(manager, client) {
     'send_listen_together_invitation',
     {
       title: 'Send Listen Together invitation',
-      description: 'Send the active official Listen Together room invitation URL as a NetEase private message to one specified user. This sends a real message from the configured small account and requires confirm=true.',
+      description: 'Send the active official Listen Together room invitation URL as a NetEase private message to one specified user. This sends a real message from the configured small account. Before sending, verify the recipient profile and obtain the current user\'s explicit confirmation of that recipient and message; only then pass confirm=true. Never infer the recipient from the repository author, examples, or unrelated prior sessions.',
       inputSchema: {
-        recipient_user_id: z.string().min(1).describe('NetEase user ID that should receive the invitation'),
+        recipient_user_id: z.string().min(1).describe('Recipient NetEase user ID explicitly confirmed by the current user; there is no default recipient'),
         message: z.string().min(1).max(700).optional().describe('Optional text placed before the invitation URL'),
         confirm: z.boolean().describe('Must be true after the user confirms sending the private message'),
       },
