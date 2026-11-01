@@ -64,11 +64,11 @@ test('resolves song IDs to normalized metadata', async () => {
 
 test('combines visible user profile data and listening records', async () => {
   const client = new NeteaseClient({ cookie: 'MUSIC_U=fake', api: {
-    user_detail: async () => ({ body: { code: 200, level: 9, profile: { userId: 1461039775, nickname: 'main' } } }),
+    user_detail: async () => ({ body: { code: 200, level: 9, profile: { userId: 123456789, nickname: 'main' } } }),
     user_playlist: async () => ({ body: { code: 200, playlist: [{ id: 8, name: '公开歌单', trackCount: 3, privacy: 0 }] } }),
     user_record: async ({ type }) => ({ body: { code: 200, [type === 1 ? 'weekData' : 'allData']: [{ song: { id: 2, name: 'song', ar: [{ name: 'artist' }] }, playCount: 4, score: 99 }] } }),
   } });
-  const result = await client.getUserProfile('1461039775');
+  const result = await client.getUserProfile('123456789');
   assert.equal(result.nickname, 'main');
   assert.equal(result.playlists[0].name, '公开歌单');
   assert.equal(result.weeklyListening.songs[0].artists, 'artist');
@@ -83,13 +83,13 @@ test('sends a private message through the enhanced API wrapper', async () => {
     },
   } });
   const result = await client.sendPrivateMessage({
-    userId: '1461039775',
+    userId: '123456789',
     message: '一起听邀请：https://st.music.163.com/listen-together/share/?roomId=1',
   });
-  assert.equal(result.recipientUserId, '1461039775');
+  assert.equal(result.recipientUserId, '123456789');
   assert.equal(result.method, 'msg_private_send');
   assert.deepEqual(received, {
-    user_ids: '1461039775',
+    user_ids: '123456789',
     msg: '一起听邀请：https://st.music.163.com/listen-together/share/?roomId=1',
     type: 'text',
     cookie: 'MUSIC_U=fake',
