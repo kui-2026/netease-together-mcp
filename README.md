@@ -16,7 +16,7 @@
 - 查看房间与歌单状态
 - 结束房间
 
-目前不会在网易云站内主动私信主号；邀请链接由 ChatGPT 返回，用户点击后用网易云 App 加入。
+邀请链接默认由 ChatGPT 返回，用户点击后用网易云 App 加入。只有在用户明确确认收件人及消息内容后，才可调用 `send_listen_together_invitation`，从部署者配置的小号发送网易云站内私信；创建房间本身不会自动发送邀请。
 
 ## 安全原则
 
@@ -25,7 +25,15 @@
 - `.env` 已被 Git 忽略，Cookie 仅通过运行环境注入。
 - 云端启动必须设置 `MCP_AUTH_TOKEN`。
 - `compose.yaml` 默认只监听服务器本机的 `127.0.0.1:3456`，应再通过带 HTTPS 的反向代理或安全隧道发布。
-- 所有创建房间、控制播放和改歌单工具都要求 `confirm=true`。
+- 所有创建房间、发送邀请、控制播放和改歌单工具都要求 `confirm=true`。
+
+## 账号与邀请对象（部署者及 AI 必读）
+
+- 本项目没有默认的个人主号或邀请收件人。仓库作者不等于当前用户，也不是邀请对象。
+- 查询个人主页时，使用当前用户提供或核实的账号 ID，不要照抄旧版本、示例或其他会话中的账号。
+- 发送邀请前，先核对收件人的公开主页，向当前用户确认具体收件人及消息内容，再传入 `confirm=true`；无法确定收件人时应先询问，不能猜测。
+- 测试文件中的账号 ID 均为虚构占位值，不得用于实机发送邀请。
+- 从旧版本升级后，请重启 MCP 服务，并在客户端刷新工具说明；同时检查自建提示词、旧示例或缓存中是否仍残留固定的个人账号指引。仅更新 GitHub 文件不会自动更新已部署的服务或他人的副本。
 
 ## 本地首次验证（Windows）
 
@@ -94,6 +102,7 @@ docker compose up -d --build
 - `remove_tracks_from_small_account_playlist`
 - `create_listen_together_room`
 - `create_listen_together_from_playlist`
+- `send_listen_together_invitation`
 - `get_listen_together_session`
 - `check_listen_together_room`
 - `replace_listen_together_playlist`
